@@ -1,0 +1,41 @@
+---
+title: FI Analysis
+format: html
+---
+
+```{r}
+#| message: false
+#| warning: false
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Helper to load sample data; replace with your file path
+excel_path <- Sys.getenv("BZ_DATA_XLSX", unset = "data/raw/data.xlsx")
+if (!file.exists(excel_path)) {
+  message("Note: Expected data at ", excel_path, " (set env BZ_DATA_XLSX). Using empty frame.")
+  df <- tibble::tibble()
+} else {
+  df <- readxl::read_excel(excel_path)
+}
+
+# Expect columns: date, institution, modality, value
+# Convert and summarize if present
+if (nrow(df) > 0) {
+  df <- df %>% mutate(date = as.Date(date))
+}
+
+institutions <- sort(unique(df$institution))
+selected_inst <- if (length(institutions) > 0) institutions[1] else NA
+
+sel <- df %>% filter(institution == selected_inst)
+
+# Plot by modality
+if (nrow(sel) > 0) {
+  ggplot(sel, aes(date, value, color = modality)) +
+    geom_line() +
+    labs(title = paste("FX modalities for", selected_inst), x = NULL, y = NULL)
+}
+```
+

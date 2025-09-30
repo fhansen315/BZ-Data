@@ -1,0 +1,12 @@
+---
+title: Home
+---
+
+Welcome to BZ-Data. This site will host:
+
+- FI-specific analysis with a selector for institution and time series across FX modalities
+- EDA for each FX modality
+
+Getting started:
+- Place your Excel file under `data/raw/` and we will wire it into Quarto, RMarkdown, and Shiny.
+

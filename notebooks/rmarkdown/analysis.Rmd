@@ -1,0 +1,31 @@
+---
+title: "Analysis Notebook"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Load and preview data
+
+```{r}
+library(readxl)
+library(dplyr)
+path <- Sys.getenv("BZ_DATA_XLSX", unset = "data/raw/data.xlsx")
+if (file.exists(path)) {
+  df <- readxl::read_excel(path)
+  dplyr::glimpse(df)
+} else {
+  message("Data not found at ", path, ". Place your .xlsx there or set BZ_DATA_XLSX.")
+}
+```
+
+# Simple summary
+
+```{r}
+if (exists("df") && nrow(df) > 0) {
+  df %>% group_by(institution, modality) %>% summarize(value = sum(value, na.rm = TRUE), .groups = "drop")
+}
+```
+

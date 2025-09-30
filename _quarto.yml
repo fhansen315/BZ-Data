@@ -1,0 +1,25 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "BZ-Data"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: notebooks/quarto/fi-analysis.qmd
+        text: FI Analysis
+      - href: notebooks/quarto/eda.qmd
+        text: EDA
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    code-fold: true
+    df-print: paged
+
+execute:
+  freeze: auto
+

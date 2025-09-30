@@ -1,0 +1,35 @@
+---
+title: Modality EDA
+format: html
+---
+
+```{r}
+#| message: false
+#| warning: false
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(patchwork)
+
+excel_path <- Sys.getenv("BZ_DATA_XLSX", unset = "data/raw/data.xlsx")
+if (!file.exists(excel_path)) {
+  message("Note: Expected data at ", excel_path, " (set env BZ_DATA_XLSX). Using empty frame.")
+  df <- tibble::tibble()
+} else {
+  df <- readxl::read_excel(excel_path)
+}
+
+# Expect: date, institution, modality, value
+if (nrow(df) > 0) df <- df %>% mutate(date = as.Date(date))
+
+# Basic EDA per modality
+if (nrow(df) > 0) {
+  p1 <- df %>% ggplot(aes(value, fill = modality)) + geom_histogram(bins = 40, alpha = 0.6)
+  p2 <- df %>% ggplot(aes(modality, value, fill = modality)) + geom_boxplot() + theme(legend.position = "none")
+  p3 <- df %>% group_by(modality, date) %>% summarize(value = sum(value, na.rm = TRUE), .groups = "drop") %>%
+    ggplot(aes(date, value, color = modality)) + geom_line()
+  p1 / (p2 | p3)
+}
+```
+
