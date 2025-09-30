@@ -1,12 +1,181 @@
 ---
-title: Home
+title: "Welcome to BZ-Data Analytics"
+subtitle: "Comprehensive FX Modality Analysis Platform"
 ---
 
-Welcome to BZ-Data. This site will host:
+## 🎯 Overview
 
-- FI-specific analysis with a selector for institution and time series across FX modalities
-- EDA for each FX modality
+BZ-Data is a comprehensive analytics platform for exploring and analyzing FX modality data across financial institutions. Built with modern data science tools, it provides interactive visualizations, statistical analysis, and real-time dashboards.
 
-Getting started:
-- Place your Excel file under `data/raw/` and we will wire it into Quarto, RMarkdown, and Shiny.
+## 🚀 Features
+
+::: {.grid}
+
+::: {.g-col-12 .g-col-md-6}
+### 🏦 FI Analysis
+Institution-specific deep dives with:
+
+- Interactive time series across all modalities
+- Comparative analysis and rankings
+- Trend detection with moving averages
+- Summary statistics and distributions
+:::
+
+::: {.g-col-12 .g-col-md-6}
+### 📊 Exploratory Data Analysis
+Modality-specific insights including:
+
+- Distribution analysis and density plots
+- Correlation matrices
+- Temporal pattern detection
+- Institution breakdowns
+:::
+
+::: {.g-col-12 .g-col-md-6}
+### 📱 Interactive Dashboard
+Shiny application featuring:
+
+- Real-time filtering and date ranges
+- Downloadable reports
+- Value boxes with key metrics
+- Interactive plotly visualizations
+:::
+
+::: {.g-col-12 .g-col-md-6}
+### 📖 Data Dictionary
+Complete documentation with:
+
+- Schema definitions
+- Variable descriptions
+- Data quality metrics
+- Validation rules
+:::
+
+:::
+
+## 📈 Quick Stats
+
+```{r}
+#| echo: false
+#| message: false
+library(dplyr)
+library(scales)
+
+source("R/data_loader.R")
+df <- load_fx_data()
+
+total_records <- nrow(df)
+total_volume <- sum(df$value, na.rm = TRUE)
+institutions <- length(unique(df$institution))
+modalities <- length(unique(df$modality))
+date_range <- paste(min(df$date), "to", max(df$date))
+```
+
+::: {.grid}
+
+::: {.g-col-6 .g-col-md-3}
+::: {.card .text-center}
+**`r format_number(total_records)`**
+Total Records
+:::
+:::
+
+::: {.g-col-6 .g-col-md-3}
+::: {.card .text-center}
+**`r institutions`**
+Institutions
+:::
+:::
+
+::: {.g-col-6 .g-col-md-3}
+::: {.card .text-center}
+**`r modalities`**
+Modalities
+:::
+:::
+
+::: {.g-col-6 .g-col-md-3}
+::: {.card .text-center}
+**`r format_currency(total_volume)`**
+Total Volume
+:::
+:::
+
+:::
+
+## 🗺️ Navigation
+
+Use the navigation bar above to explore:
+
+- **[FI Analysis](notebooks/quarto/fi-analysis.qmd)**: Institution-specific time series and comparisons
+- **[EDA](notebooks/quarto/eda.qmd)**: Deep dive into each FX modality
+- **[Data Dictionary](notebooks/quarto/data-dictionary.qmd)**: Schema and variable definitions
+
+## 🛠️ Getting Started
+
+### View the Analysis
+
+Simply navigate through the pages using the menu above. All visualizations are interactive - hover for details, zoom, and pan.
+
+### Run Locally
+
+```bash
+# Clone the repository
+git clone https://github.com/fhansen315/BZ-Data.git
+cd BZ-Data
+
+# Install dependencies
+make install
+
+# Preview the site
+make preview
+
+# Run Shiny dashboard
+make shiny
+```
+
+### Load Your Data
+
+Place your data file in `data/raw/` and set the environment variable:
+
+```bash
+export BZ_DATA_PATH="data/raw/your_file.csv"
+```
+
+Expected columns: `date`, `institution`, `modality`, `value`
+
+## 📊 Sample Visualization
+
+```{r}
+#| echo: false
+#| fig-width: 10
+#| fig-height: 5
+library(ggplot2)
+library(plotly)
+
+source("R/plotting.R")
+
+p <- plot_modality_timeseries(df, title = "FX Modalities Over Time", interactive = FALSE)
+p
+```
+
+## 🤝 Contributing
+
+This is an active development project. Contributions are welcome!
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## 📝 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+::: {.callout-tip}
+## 💡 Tip
+Start with the [FI Analysis](notebooks/quarto/fi-analysis.qmd) page to explore institution-specific trends, then dive into [EDA](notebooks/quarto/eda.qmd) for modality-specific insights.
+:::
 

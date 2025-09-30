@@ -1,0 +1,205 @@
+---
+title: "Data Dictionary"
+subtitle: "Schema and Variable Definitions"
+format:
+  html:
+    toc: true
+    toc-depth: 2
+---
+
+## Overview
+
+This page documents the data schema, variable definitions, and data quality metrics for the BZ-Data project.
+
+## Data Schema
+
+### Primary Dataset
+
+The primary dataset contains FX transaction data with the following structure:
+
+| Column      | Type    | Description                                    | Example         |
+|-------------|---------|------------------------------------------------|-----------------|
+| date        | Date    | Transaction date (YYYY-MM-DD)                  | 2024-01-01      |
+| institution | String  | Financial institution identifier               | Bank_Alpha      |
+| modality    | String  | FX transaction modality                        | Spot            |
+| value       | Numeric | Transaction value in base currency             | 125000          |
+
+### Data Types
+
+- **date**: ISO 8601 date format (YYYY-MM-DD)
+- **institution**: Categorical variable, alphanumeric string
+- **modality**: Categorical variable with fixed values
+- **value**: Continuous numeric variable, non-negative
+
+## Variable Definitions
+
+### FX Modalities
+
+The dataset includes four primary FX modalities:
+
+#### Spot
+- **Definition**: Immediate exchange of currencies at current market rate
+- **Settlement**: T+2 (two business days)
+- **Use Case**: Immediate currency needs, hedging short-term exposure
+
+#### Forward
+- **Definition**: Agreement to exchange currencies at a future date at a predetermined rate
+- **Settlement**: Custom future date (typically 1 week to 1 year)
+- **Use Case**: Hedging future currency exposure, locking in exchange rates
+
+#### Swap
+- **Definition**: Simultaneous purchase and sale of currencies with different value dates
+- **Settlement**: Two legs - near date and far date
+- **Use Case**: Managing liquidity, rolling forward positions
+
+#### Options
+- **Definition**: Right (but not obligation) to exchange currencies at a specified rate
+- **Settlement**: On or before expiration date
+- **Use Case**: Hedging with flexibility, speculative positions
+
+### Institutions
+
+Financial institutions are anonymized and represented as:
+- Bank_Alpha
+- Bank_Beta
+- Bank_Gamma
+- (Additional institutions as data expands)
+
+## Data Quality
+
+```{r}
+#| echo: false
+#| message: false
+library(dplyr)
+library(knitr)
+
+source("../../R/data_loader.R")
+df <- load_fx_data()
+
+# Data quality metrics
+quality_metrics <- tibble::tibble(
+  Metric = c(
+    "Total Records",
+    "Complete Cases",
+    "Missing Values",
+    "Duplicate Records",
+    "Date Range",
+    "Unique Institutions",
+    "Unique Modalities"
+  ),
+  Value = c(
+    nrow(df),
+    sum(complete.cases(df)),
+    sum(!complete.cases(df)),
+    sum(duplicated(df)),
+    paste(min(df$date), "to", max(df$date)),
+    length(unique(df$institution)),
+    length(unique(df$modality))
+  )
+)
+
+kable(quality_metrics, caption = "Data Quality Metrics")
+```
+
+## Summary Statistics
+
+```{r}
+#| echo: false
+#| message: false
+library(scales)
+
+# Overall statistics
+overall_stats <- df %>%
+  summarize(
+    `Total Volume` = comma(sum(value, na.rm = TRUE)),
+    `Mean Transaction` = comma(mean(value, na.rm = TRUE), accuracy = 0.01),
+    `Median Transaction` = comma(median(value, na.rm = TRUE)),
+    `Std Deviation` = comma(sd(value, na.rm = TRUE), accuracy = 0.01),
+    `Min Value` = comma(min(value, na.rm = TRUE)),
+    `Max Value` = comma(max(value, na.rm = TRUE))
+  )
+
+kable(t(overall_stats), col.names = c("Value"), caption = "Overall Statistics")
+```
+
+### By Modality
+
+```{r}
+#| echo: false
+modality_stats <- df %>%
+  group_by(modality) %>%
+  summarize(
+    Records = n(),
+    `Total Volume` = sum(value, na.rm = TRUE),
+    `Mean` = mean(value, na.rm = TRUE),
+    `Median` = median(value, na.rm = TRUE),
+    `Std Dev` = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(`Total Volume`))
+
+kable(modality_stats, format.args = list(big.mark = ","), digits = 0, caption = "Statistics by Modality")
+```
+
+### By Institution
+
+```{r}
+#| echo: false
+institution_stats <- df %>%
+  group_by(institution) %>%
+  summarize(
+    Records = n(),
+    `Total Volume` = sum(value, na.rm = TRUE),
+    `Mean` = mean(value, na.rm = TRUE),
+    `Median` = median(value, na.rm = TRUE),
+    `Std Dev` = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(`Total Volume`))
+
+kable(institution_stats, format.args = list(big.mark = ","), digits = 0, caption = "Statistics by Institution")
+```
+
+## Data Sources
+
+### Current Data
+- **Source**: Sample synthetic data
+- **File**: `data/raw/sample_fx_data.csv`
+- **Period**: January 2024 - September 2024
+- **Frequency**: Monthly aggregates
+
+### Loading Custom Data
+
+To load your own data, ensure it matches the schema above and set the environment variable:
+
+```bash
+export BZ_DATA_PATH="path/to/your/data.csv"
+```
+
+Or for Excel files:
+
+```bash
+export BZ_DATA_PATH="path/to/your/data.xlsx"
+```
+
+## Data Validation Rules
+
+The data loader applies the following validation rules:
+
+1. **Required Columns**: date, institution, modality, value
+2. **Date Format**: Must be convertible to Date type
+3. **Value Type**: Must be numeric
+4. **Non-null**: All fields must be non-null
+5. **Value Range**: Values must be non-negative
+
+## Change Log
+
+| Date       | Change                                    | Author  |
+|------------|-------------------------------------------|---------|
+| 2025-09-30 | Initial data dictionary created           | Chicão  |
+| 2025-09-30 | Added sample synthetic data               | Chicão  |
+
+## Contact
+
+For questions about the data or to report data quality issues, please open an issue on GitHub.
+

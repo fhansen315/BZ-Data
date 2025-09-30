@@ -1,35 +1,261 @@
 ---
-title: Modality EDA
-format: html
+title: "Exploratory Data Analysis"
+subtitle: "Deep Dive into FX Modalities"
+format:
+  html:
+    code-fold: true
+    code-tools: true
+    toc: true
+    toc-depth: 3
 ---
 
-```{r}
-#| message: false
-#| warning: false
-library(readxl)
+```{r setup}
+#| include: false
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 10,
+  fig.height = 6
+)
+```
+
+```{r load-libraries}
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(plotly)
 library(patchwork)
+library(DT)
+library(scales)
 
-excel_path <- Sys.getenv("BZ_DATA_XLSX", unset = "data/raw/data.xlsx")
-if (!file.exists(excel_path)) {
-  message("Note: Expected data at ", excel_path, " (set env BZ_DATA_XLSX). Using empty frame.")
-  df <- tibble::tibble()
-} else {
-  df <- readxl::read_excel(excel_path)
+# Source utility functions
+source("R/data_loader.R")
+source("R/plotting.R")
+source("R/utils.R")
+```
+
+```{r load-data}
+df <- load_fx_data()
+modalities <- get_modalities(df)
+```
+
+## Overview
+
+This page provides detailed exploratory data analysis for each FX modality. Explore distributions, trends, correlations, and statistical properties.
+
+::: {.callout-tip}
+## Available Modalities
+`r paste(modalities, collapse = ", ")`
+:::
+
+## Distribution Analysis
+
+### Overall Distribution by Modality
+
+```{r overall-distribution}
+p1 <- df %>%
+  ggplot(aes(x = value, fill = modality)) +
+  geom_histogram(bins = 40, alpha = 0.6, position = "identity") +
+  facet_wrap(~modality, scales = "free_y") +
+  labs(
+    title = "Value Distribution by Modality",
+    x = "Value",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    legend.position = "none"
+  ) +
+  scale_x_continuous(labels = comma)
+
+ggplotly(p1)
+```
+
+### Density Comparison
+
+```{r density-plot}
+p_density <- df %>%
+  ggplot(aes(x = value, fill = modality)) +
+  geom_density(alpha = 0.5) +
+  labs(
+    title = "Density Distribution Comparison",
+    x = "Value",
+    y = "Density",
+    fill = "Modality"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    legend.position = "bottom"
+  ) +
+  scale_x_continuous(labels = comma)
+
+ggplotly(p_density)
+```
+
+## Modality-Specific Analysis
+
+```{r modality-tabs}
+#| results: asis
+for (mod in modalities) {
+  cat("\n### ", mod, "\n\n")
+
+  mod_data <- filter_by_modality(df, mod)
+
+  # Summary statistics
+  cat("#### Summary Statistics\n\n")
+  stats <- mod_data %>%
+    summarize(
+      n = n(),
+      mean = mean(value, na.rm = TRUE),
+      median = median(value, na.rm = TRUE),
+      sd = sd(value, na.rm = TRUE),
+      min = min(value, na.rm = TRUE),
+      max = max(value, na.rm = TRUE),
+      q25 = quantile(value, 0.25, na.rm = TRUE),
+      q75 = quantile(value, 0.75, na.rm = TRUE),
+      cv = sd / mean
+    )
+
+  print(knitr::kable(stats, format.args = list(big.mark = ","), digits = 2))
+  cat("\n\n")
+
+  # Time series
+  cat("#### Time Series\n\n")
+  p_ts <- mod_data %>%
+    group_by(date, institution) %>%
+    summarize(value = sum(value, na.rm = TRUE), .groups = "drop") %>%
+    ggplot(aes(x = date, y = value, color = institution)) +
+    geom_line(linewidth = 1) +
+    geom_point(size = 2, alpha = 0.6) +
+    labs(
+      title = paste(mod, "- Time Series by Institution"),
+      x = NULL,
+      y = "Value",
+      color = "Institution"
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(face = "bold", size = 12),
+      legend.position = "bottom"
+    ) +
+    scale_y_continuous(labels = comma)
+
+  print(ggplotly(p_ts))
+  cat("\n\n")
+
+  # Histogram
+  cat("#### Distribution\n\n")
+  p_hist <- plot_modality_histogram(mod_data, title = paste(mod, "- Value Distribution"), bins = 30)
+  print(p_hist)
+  cat("\n\n")
+
+  # Institution breakdown
+  cat("#### Institution Breakdown\n\n")
+  inst_summary <- mod_data %>%
+    group_by(institution) %>%
+    summarize(
+      total = sum(value, na.rm = TRUE),
+      mean = mean(value, na.rm = TRUE),
+      n = n(),
+      .groups = "drop"
+    ) %>%
+    arrange(desc(total))
+
+  print(knitr::kable(inst_summary, format.args = list(big.mark = ","), digits = 0))
+  cat("\n\n")
 }
+```
 
-# Expect: date, institution, modality, value
-if (nrow(df) > 0) df <- df %>% mutate(date = as.Date(date))
+## Correlation Analysis
 
-# Basic EDA per modality
-if (nrow(df) > 0) {
-  p1 <- df %>% ggplot(aes(value, fill = modality)) + geom_histogram(bins = 40, alpha = 0.6)
-  p2 <- df %>% ggplot(aes(modality, value, fill = modality)) + geom_boxplot() + theme(legend.position = "none")
-  p3 <- df %>% group_by(modality, date) %>% summarize(value = sum(value, na.rm = TRUE), .groups = "drop") %>%
-    ggplot(aes(date, value, color = modality)) + geom_line()
-  p1 / (p2 | p3)
+### Modality Correlations
+
+```{r correlation}
+# Pivot data for correlation
+corr_data <- df %>%
+  group_by(date, modality) %>%
+  summarize(value = sum(value, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = modality, values_from = value, values_fill = 0)
+
+if (ncol(corr_data) > 2) {
+  corr_matrix <- cor(corr_data %>% select(-date), use = "complete.obs")
+
+  # Heatmap
+  corr_df <- as.data.frame(as.table(corr_matrix))
+  names(corr_df) <- c("Modality1", "Modality2", "Correlation")
+
+  p_corr <- ggplot(corr_df, aes(x = Modality1, y = Modality2, fill = Correlation)) +
+    geom_tile(color = "white") +
+    geom_text(aes(label = round(Correlation, 2)), color = "white", fontface = "bold") +
+    scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+    labs(
+      title = "Modality Correlation Matrix",
+      x = NULL,
+      y = NULL
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(face = "bold", size = 14),
+      axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+
+  print(p_corr)
 }
+```
+
+## Temporal Patterns
+
+### Day-of-Month Analysis
+
+```{r temporal}
+temporal_data <- df %>%
+  mutate(
+    month = format(date, "%Y-%m"),
+    day = as.numeric(format(date, "%d"))
+  ) %>%
+  group_by(modality, day) %>%
+  summarize(avg_value = mean(value, na.rm = TRUE), .groups = "drop")
+
+p_temporal <- ggplot(temporal_data, aes(x = day, y = avg_value, color = modality)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  labs(
+    title = "Average Value by Day of Month",
+    x = "Day of Month",
+    y = "Average Value",
+    color = "Modality"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    legend.position = "bottom"
+  ) +
+  scale_y_continuous(labels = comma)
+
+ggplotly(p_temporal)
+```
+
+## Data Table
+
+### Complete Dataset
+
+```{r data-table}
+datatable(
+  df,
+  options = list(
+    pageLength = 25,
+    scrollX = TRUE,
+    dom = 'Bfrtip',
+    buttons = c('copy', 'csv', 'excel')
+  ),
+  extensions = 'Buttons',
+  filter = 'top',
+  rownames = FALSE
+) %>%
+  formatCurrency("value", digits = 0) %>%
+  formatDate("date", method = "toLocaleDateString")
 ```
 

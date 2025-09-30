@@ -1,41 +1,156 @@
 ---
-title: FI Analysis
-format: html
+title: "FI Analysis"
+subtitle: "Institution-Specific FX Modality Time Series"
+format:
+  html:
+    code-fold: true
+    code-tools: true
+    toc: true
+    toc-depth: 3
 ---
 
-```{r}
+```{r setup}
+#| include: false
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 10,
+  fig.height = 6
+)
+```
+
+```{r load-libraries}
 #| message: false
-#| warning: false
-library(readxl)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(plotly)
+library(DT)
+library(scales)
 
-# Helper to load sample data; replace with your file path
-excel_path <- Sys.getenv("BZ_DATA_XLSX", unset = "data/raw/data.xlsx")
-if (!file.exists(excel_path)) {
-  message("Note: Expected data at ", excel_path, " (set env BZ_DATA_XLSX). Using empty frame.")
-  df <- tibble::tibble()
-} else {
-  df <- readxl::read_excel(excel_path)
+# Source utility functions
+source("R/data_loader.R")
+source("R/plotting.R")
+source("R/utils.R")
+```
+
+```{r load-data}
+# Load data using utility function
+df <- load_fx_data()
+
+# Get institutions for selection
+institutions <- get_institutions(df)
+```
+
+## Overview
+
+This page provides institution-specific analysis of FX modalities over time. Select an institution below to view detailed time series, summary statistics, and comparative analysis.
+
+::: {.callout-note}
+## Data Source
+Currently using: `r Sys.getenv("BZ_DATA_PATH", unset = "data/raw/sample_fx_data.csv")`
+
+Total records: **`r format_number(nrow(df))`**
+Date range: **`r min(df$date)` to `r max(df$date)`**
+Institutions: **`r length(institutions)`**
+:::
+
+## Institution Selector
+
+```{r institution-tabs}
+#| results: asis
+for (inst in institutions) {
+  cat("\n### ", inst, "\n\n")
+
+  inst_data <- filter_by_institution(df, inst)
+
+  # Summary stats
+  cat("#### Summary Statistics\n\n")
+  summary_stats <- summarize_data(inst_data, group_by = "modality")
+  print(knitr::kable(summary_stats, format.args = list(big.mark = ",")))
+  cat("\n\n")
+
+  # Time series plot
+  cat("#### Time Series by Modality\n\n")
+  p <- plot_modality_timeseries(
+    inst_data,
+    title = paste("FX Modalities -", inst),
+    interactive = TRUE
+  )
+  print(p)
+  cat("\n\n")
+
+  # Boxplot comparison
+  cat("#### Distribution Comparison\n\n")
+  p_box <- plot_modality_boxplot(inst_data, title = paste("Modality Comparison -", inst))
+  print(p_box)
+  cat("\n\n")
 }
+```
 
-# Expect columns: date, institution, modality, value
-# Convert and summarize if present
-if (nrow(df) > 0) {
-  df <- df %>% mutate(date = as.Date(date))
-}
+## Cross-Institution Comparison
 
-institutions <- sort(unique(df$institution))
-selected_inst <- if (length(institutions) > 0) institutions[1] else NA
+### Total Volume by Institution and Modality
 
-sel <- df %>% filter(institution == selected_inst)
+```{r heatmap}
+plot_heatmap(df, title = "Total FX Volume Heatmap")
+```
 
-# Plot by modality
-if (nrow(sel) > 0) {
-  ggplot(sel, aes(date, value, color = modality)) +
-    geom_line() +
-    labs(title = paste("FX modalities for", selected_inst), x = NULL, y = NULL)
-}
+### Institution Rankings
+
+```{r rankings}
+rankings <- df %>%
+  group_by(institution) %>%
+  summarize(
+    total_volume = sum(value, na.rm = TRUE),
+    avg_transaction = mean(value, na.rm = TRUE),
+    n_transactions = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(total_volume)) %>%
+  mutate(rank = row_number())
+
+datatable(
+  rankings,
+  options = list(pageLength = 10, dom = 'tip'),
+  rownames = FALSE
+) %>%
+  formatCurrency(c("total_volume", "avg_transaction"), digits = 0) %>%
+  formatRound("n_transactions", digits = 0)
+```
+
+## Trend Analysis
+
+```{r trend-analysis}
+# Calculate monthly growth rates
+trend_data <- df %>%
+  group_by(institution, date) %>%
+  summarize(total_value = sum(value, na.rm = TRUE), .groups = "drop") %>%
+  arrange(institution, date) %>%
+  group_by(institution) %>%
+  mutate(
+    pct_change = pct_change(total_value),
+    ma_3 = moving_average(total_value, 3)
+  ) %>%
+  ungroup()
+
+p_trend <- ggplot(trend_data, aes(x = date, y = total_value, color = institution)) +
+  geom_line(linewidth = 1, alpha = 0.6) +
+  geom_line(aes(y = ma_3), linewidth = 1.5) +
+  labs(
+    title = "Total FX Volume Trends with 3-Month Moving Average",
+    x = NULL,
+    y = "Total Value",
+    color = "Institution"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    legend.position = "bottom"
+  ) +
+  scale_y_continuous(labels = comma)
+
+ggplotly(p_trend)
 ```
 

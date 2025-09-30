@@ -3,23 +3,53 @@ project:
   output-dir: _site
 
 website:
-  title: "BZ-Data"
+  title: "BZ-Data Analytics"
+  description: "FX Modality Analysis Platform"
+  favicon: "https://raw.githubusercontent.com/twbs/icons/main/icons/graph-up.svg"
+
   navbar:
+    background: primary
     left:
       - href: index.qmd
         text: Home
+        icon: house
       - href: notebooks/quarto/fi-analysis.qmd
         text: FI Analysis
+        icon: building
       - href: notebooks/quarto/eda.qmd
         text: EDA
+        icon: bar-chart
+      - href: notebooks/quarto/data-dictionary.qmd
+        text: Data Dictionary
+        icon: book
+    right:
+      - icon: github
+        href: https://github.com/fhansen315/BZ-Data
+        aria-label: GitHub
+
+  page-footer:
+    left: "© 2025 Chicão. Licensed under MIT."
+    right:
+      - icon: github
+        href: https://github.com/fhansen315/BZ-Data
+        aria-label: GitHub
 
 format:
   html:
-    theme: cosmo
+    theme:
+      light: [cosmo, custom.scss]
     toc: true
+    toc-depth: 3
     code-fold: true
+    code-tools: true
+    code-copy: true
     df-print: paged
+    link-external-newwindow: true
+    smooth-scroll: true
 
 execute:
   freeze: auto
+  cache: false
+  warning: false
+  message: false
 
