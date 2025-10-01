@@ -1,6 +1,10 @@
 # BZ-Data 🚀
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Quarto Publish](https://github.com/fhansen315/BZ-Data/actions/workflows/quarto-publish.yml/badge.svg)](https://github.com/fhansen315/BZ-Data/actions/workflows/quarto-publish.yml)
+[![R Check](https://github.com/fhansen315/BZ-Data/actions/workflows/r-check.yml/badge.svg)](https://github.com/fhansen315/BZ-Data/actions/workflows/r-check.yml)
+[![GitHub issues](https://img.shields.io/github/issues/fhansen315/BZ-Data)](https://github.com/fhansen315/BZ-Data/issues)
+[![GitHub stars](https://img.shields.io/github/stars/fhansen315/BZ-Data)](https://github.com/fhansen315/BZ-Data/stargazers)
 
 Comprehensive data analysis and visualization workspace for FX modality analytics. Built with Quarto, RMarkdown, and Shiny for deep-dive financial institution analysis.
 
@@ -143,11 +147,16 @@ make lint
 
 ## 🤝 Contributing
 
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+Quick start:
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## 📝 License
 
