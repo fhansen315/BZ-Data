@@ -19,6 +19,9 @@ website:
       - href: notebooks/quarto/eda.qmd
         text: EDA
         icon: bar-chart
+      - href: notebooks/quarto/advanced-analytics.qmd
+        text: Advanced Analytics
+        icon: cpu
       - href: notebooks/quarto/data-dictionary.qmd
         text: Data Dictionary
         icon: book

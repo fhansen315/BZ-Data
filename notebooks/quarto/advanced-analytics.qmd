@@ -1,0 +1,362 @@
+---
+title: "Advanced Analytics"
+subtitle: "Risk Analysis, Forecasting & Financial Modeling"
+format:
+  html:
+    code-fold: true
+    code-tools: true
+    toc: true
+    toc-depth: 3
+---
+
+```{r setup}
+#| include: false
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 12,
+  fig.height = 8
+)
+```
+
+```{r load-libraries}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(plotly)
+library(patchwork)
+library(scales)
+
+# Source all utility functions
+source("../../R/data_loader.R")
+source("../../R/plotting.R")
+source("../../R/utils.R")
+source("../../R/financial_analytics.R")
+source("../../R/forecasting.R")
+source("../../R/advanced_plotting.R")
+```
+
+```{r load-data}
+# Load and prepare data
+df <- load_fx_data()
+
+# Calculate returns for risk analysis
+df_returns <- df %>%
+  arrange(institution, modality, date) %>%
+  group_by(institution, modality) %>%
+  mutate(
+    returns = (value - lag(value)) / lag(value),
+    log_returns = log(value / lag(value))
+  ) %>%
+  filter(!is.na(returns)) %>%
+  ungroup()
+```
+
+## Overview
+
+This page provides advanced financial analytics including risk metrics, forecasting models, and sophisticated visualizations for FX modality data.
+
+::: {.callout-important}
+## Advanced Analytics Features
+- **Risk Analysis**: VaR, Expected Shortfall, Volatility Analysis
+- **Forecasting**: Multiple time series forecasting methods
+- **Anomaly Detection**: Statistical outlier identification
+- **Correlation Analysis**: Cross-asset relationship analysis
+- **Portfolio Metrics**: Risk-adjusted performance measures
+:::
+
+## Risk Analysis
+
+### Value at Risk (VaR) Analysis
+
+```{r var-analysis}
+# Calculate VaR for each institution-modality combination
+var_results <- df_returns %>%
+  group_by(institution, modality) %>%
+  summarize(
+    var_95_hist = calculate_var(returns, 0.95, "historical"),
+    var_95_param = calculate_var(returns, 0.95, "parametric"),
+    var_99_hist = calculate_var(returns, 0.99, "historical"),
+    expected_shortfall = calculate_expected_shortfall(returns, 0.95),
+    .groups = "drop"
+  ) %>%
+  arrange(var_95_hist)
+
+# Display VaR table
+knitr::kable(
+  var_results %>% 
+    mutate(across(where(is.numeric), ~ round(.x * 100, 2))) %>%
+    rename(
+      "VaR 95% (Hist)" = var_95_hist,
+      "VaR 95% (Param)" = var_95_param,
+      "VaR 99% (Hist)" = var_99_hist,
+      "Expected Shortfall" = expected_shortfall
+    ),
+  caption = "Value at Risk Analysis (% Daily Returns)"
+)
+```
+
+### Rolling Volatility Analysis
+
+```{r volatility-analysis}
+# Calculate rolling volatility for each institution
+vol_data <- df %>%
+  arrange(institution, date) %>%
+  group_by(institution) %>%
+  summarize(
+    total_value = sum(value, na.rm = TRUE),
+    .by = date,
+    .groups = "drop"
+  ) %>%
+  arrange(institution, date) %>%
+  group_by(institution) %>%
+  mutate(
+    rolling_vol = calculate_rolling_volatility(total_value, window = 3, annualize = FALSE)
+  ) %>%
+  filter(!is.na(rolling_vol))
+
+# Plot rolling volatility
+p_vol <- ggplot(vol_data, aes(x = date, y = rolling_vol, color = institution)) +
+  geom_line(linewidth = 1.2) +
+  labs(
+    title = "Rolling Volatility Analysis (3-Month Window)",
+    x = "Date",
+    y = "Volatility",
+    color = "Institution"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    legend.position = "bottom"
+  ) +
+  scale_y_continuous(labels = percent_format(accuracy = 0.1))
+
+ggplotly(p_vol)
+```
+
+### Risk Dashboard
+
+```{r risk-dashboard}
+# Prepare risk dashboard data
+risk_dashboard_data <- df %>%
+  group_by(date) %>%
+  summarize(total_value = sum(value, na.rm = TRUE), .groups = "drop") %>%
+  arrange(date) %>%
+  mutate(
+    returns = (total_value - lag(total_value)) / lag(total_value),
+    cumulative_returns = cumprod(1 + coalesce(returns, 0)) - 1,
+    rolling_vol = calculate_rolling_volatility(total_value, window = 3, annualize = FALSE),
+    var = calculate_var(returns[!is.na(returns)], 0.95, "historical"),
+    sharpe_ratio = calculate_sharpe_ratio(returns[!is.na(returns)]),
+    drawdown = 0  # Simplified for demo
+  ) %>%
+  filter(!is.na(rolling_vol))
+
+# Create individual risk plots
+p1 <- ggplot(risk_dashboard_data, aes(x = date, y = abs(var))) +
+  geom_line(color = "red", linewidth = 1) +
+  geom_area(alpha = 0.3, fill = "red") +
+  labs(title = "Value at Risk (95%)", x = NULL, y = "VaR") +
+  theme_minimal() +
+  scale_y_continuous(labels = percent_format())
+
+p2 <- ggplot(risk_dashboard_data, aes(x = date, y = rolling_vol)) +
+  geom_line(color = "orange", linewidth = 1) +
+  labs(title = "Rolling Volatility", x = NULL, y = "Volatility") +
+  theme_minimal() +
+  scale_y_continuous(labels = percent_format())
+
+p3 <- ggplot(risk_dashboard_data, aes(x = date, y = cumulative_returns)) +
+  geom_line(color = "blue", linewidth = 1) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray") +
+  labs(title = "Cumulative Returns", x = "Date", y = "Cumulative Return") +
+  theme_minimal() +
+  scale_y_continuous(labels = percent_format())
+
+p4 <- ggplot(risk_dashboard_data, aes(x = date, y = total_value)) +
+  geom_area(fill = "steelblue", alpha = 0.7) +
+  labs(title = "Total Portfolio Value", x = "Date", y = "Value") +
+  theme_minimal() +
+  scale_y_continuous(labels = dollar_format())
+
+# Combine plots
+(p1 | p2) / (p3 | p4)
+```
+
+## Forecasting Analysis
+
+### Multiple Forecasting Methods
+
+```{r forecasting}
+# Prepare data for forecasting
+forecast_data <- df %>%
+  group_by(date) %>%
+  summarize(total_value = sum(value, na.rm = TRUE), .groups = "drop") %>%
+  arrange(date) %>%
+  pull(total_value)
+
+# Generate forecasts using different methods
+n_forecast <- 6  # 6 months ahead
+
+forecast_ma <- forecast_moving_average(forecast_data, n_forecast, window = 3)
+forecast_es <- forecast_exponential_smoothing(forecast_data, n_forecast, alpha = 0.3)
+forecast_trend <- forecast_linear_trend(forecast_data, n_forecast)
+forecast_ensemble <- forecast_ensemble(forecast_data, n_forecast)
+
+# Create forecast comparison table
+forecast_comparison <- data.frame(
+  Period = 1:n_forecast,
+  "Moving Average" = round(forecast_ma$forecast, 0),
+  "Exp Smoothing" = round(forecast_es$forecast, 0),
+  "Linear Trend" = round(forecast_trend$forecast, 0),
+  "Ensemble" = round(forecast_ensemble$forecast, 0)
+)
+
+knitr::kable(
+  forecast_comparison,
+  caption = "6-Month Forecast Comparison",
+  format.args = list(big.mark = ",")
+)
+```
+
+### Forecast Visualization
+
+```{r forecast-viz}
+# Create forecast visualization
+historical_dates <- seq.Date(from = min(df$date), to = max(df$date), by = "month")
+forecast_dates <- seq.Date(from = max(df$date) + months(1), length.out = n_forecast, by = "month")
+
+# Prepare plot data
+plot_data <- data.frame(
+  date = c(historical_dates, forecast_dates),
+  value = c(forecast_data, forecast_ensemble$forecast),
+  type = c(rep("Historical", length(forecast_data)), rep("Forecast", n_forecast)),
+  lower = c(rep(NA, length(forecast_data)), forecast_ensemble$lower_ci),
+  upper = c(rep(NA, length(forecast_data)), forecast_ensemble$upper_ci)
+)
+
+p_forecast <- ggplot(plot_data, aes(x = date, y = value)) +
+  geom_line(aes(color = type), linewidth = 1.2) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3, fill = "blue", na.rm = TRUE) +
+  scale_color_manual(values = c("Historical" = "black", "Forecast" = "blue")) +
+  labs(
+    title = "Ensemble Forecast with Confidence Intervals",
+    x = "Date",
+    y = "Total Value",
+    color = "Type"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    legend.position = "bottom"
+  ) +
+  scale_y_continuous(labels = dollar_format())
+
+ggplotly(p_forecast)
+```
+
+## Anomaly Detection
+
+```{r anomaly-detection}
+# Detect anomalies in the data
+anomaly_data <- df %>%
+  group_by(date) %>%
+  summarize(total_value = sum(value, na.rm = TRUE), .groups = "drop") %>%
+  arrange(date) %>%
+  mutate(
+    anomaly_zscore = detect_anomalies(total_value, method = "zscore", threshold = 2),
+    anomaly_iqr = detect_anomalies(total_value, method = "iqr"),
+    anomaly_modified = detect_anomalies(total_value, method = "modified_zscore", threshold = 2.5)
+  )
+
+# Count anomalies by method
+anomaly_summary <- anomaly_data %>%
+  summarize(
+    "Z-Score" = sum(anomaly_zscore, na.rm = TRUE),
+    "IQR Method" = sum(anomaly_iqr, na.rm = TRUE),
+    "Modified Z-Score" = sum(anomaly_modified, na.rm = TRUE)
+  )
+
+knitr::kable(anomaly_summary, caption = "Anomaly Detection Summary")
+
+# Plot anomalies
+p_anomaly <- ggplot(anomaly_data, aes(x = date, y = total_value)) +
+  geom_line(color = "gray", alpha = 0.7) +
+  geom_point(aes(color = anomaly_zscore), size = 3) +
+  scale_color_manual(values = c("FALSE" = "blue", "TRUE" = "red"),
+                     labels = c("Normal", "Anomaly")) +
+  labs(
+    title = "Anomaly Detection (Z-Score Method)",
+    x = "Date",
+    y = "Total Value",
+    color = "Status"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    legend.position = "bottom"
+  ) +
+  scale_y_continuous(labels = dollar_format())
+
+ggplotly(p_anomaly)
+```
+
+## Correlation Analysis
+
+```{r correlation-analysis}
+# Create correlation matrix for institutions
+inst_data <- df %>%
+  select(date, institution, value) %>%
+  pivot_wider(names_from = institution, values_from = value, values_fill = 0)
+
+if (ncol(inst_data) > 2) {
+  corr_matrix <- cor(inst_data[, -1], use = "complete.obs")
+  
+  # Plot correlation heatmap
+  plot_correlation_heatmap(corr_matrix, "Institution Correlation Matrix")
+} else {
+  cat("Not enough institutions for correlation analysis")
+}
+```
+
+## Performance Metrics
+
+```{r performance-metrics}
+# Calculate performance metrics for each institution
+performance_metrics <- df_returns %>%
+  group_by(institution) %>%
+  summarize(
+    total_return = sum(returns, na.rm = TRUE),
+    volatility = sd(returns, na.rm = TRUE),
+    sharpe_ratio = calculate_sharpe_ratio(returns),
+    max_drawdown = calculate_max_drawdown(cumsum(returns))$max_dd,
+    var_95 = calculate_var(returns, 0.95, "historical"),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(sharpe_ratio))
+
+knitr::kable(
+  performance_metrics %>%
+    mutate(
+      total_return = percent(total_return, accuracy = 0.1),
+      volatility = percent(volatility, accuracy = 0.1),
+      sharpe_ratio = round(sharpe_ratio, 2),
+      max_drawdown = percent(max_drawdown, accuracy = 0.1),
+      var_95 = percent(var_95, accuracy = 0.1)
+    ),
+  caption = "Performance Metrics by Institution"
+)
+```
+
+## Summary
+
+This advanced analytics dashboard provides:
+
+- **Risk Assessment**: VaR and volatility analysis across institutions
+- **Forecasting**: Multiple methods with ensemble approach
+- **Anomaly Detection**: Statistical outlier identification
+- **Performance Metrics**: Risk-adjusted returns and drawdown analysis
+- **Correlation Analysis**: Cross-institutional relationship mapping
+
+The analysis reveals key insights about risk patterns, growth trends, and institutional performance that can inform strategic decision-making.
